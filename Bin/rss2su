@@ -1,0 +1,70 @@
+#!/usr/bin/python3
+#!/usr/bin/env python3
+''' Script for converting rss file to su '''
+
+## Imports
+import numpy as np
+import rss
+import babin as ba
+import sys
+import argparse
+import com
+import segy
+
+def main() :
+  ''' Scrip for converting rss file to su file'''
+  # Heading
+  parser = argparse.ArgumentParser(description="Script for converting an rss file \
+                                       to an su file")
+  # Get standard arguments
+  parser = com.comargs(parser)
+  # Get local arguments
+
+  #Parse arguments
+  args = parser.parse_args()
+
+  #Create rss object
+  rs = rss.RSSdata()
+  rs.read(args.fin)
+
+  print("geomN :", rs.geomN)
+
+  ntr = int(rs.geomN[0][0])
+  ns  = int(rs.geomN[2][0])
+  dt  = int(1000000*rs.geomD[0][0]) # Convert to us
+
+  if(rs.type == 2) or (rs.type == 3) :
+    ns  = int(rs.geomN[0][0])
+    ntr = rs.geomN[1][0]
+
+  data = rs.data
+  print("data shape: ", data.shape)
+  data = np.reshape(data,(ns,ntr),order='F')
+  print("data shape: ", data.shape)
+
+  # Create an su trace header
+  trhd = segy.segyhd("su")
+ 
+  #Open output file
+  
+  fp = open(args.fout,"wb")
+  
+  print("ns, dt: ", ns,dt)
+  trhd.ns = ns
+  trhd.dt = dt
+
+  print("rs.srcX[0]: ", rs.srcX[0][0])
+  for i in range(0,ntr) :  
+    trhd.sx = int(rs.srcX[i][0])
+    trhd.sy = int(rs.srcY[i][0])
+    trhd.gx = int(rs.GroupX[i][0])
+    trhd.gy = int(rs.GroupY[i][0])
+    segy.writetr(fp,trhd,data[:,i]) 
+
+  fp.close()
+#--Usual python magic
+if __name__ == "__main__":
+    main()
+
+
+
