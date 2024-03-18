@@ -498,7 +498,7 @@ def writetr(fp,trhd,trace) :
   head[16:20]= trhd.ep.to_bytes   (4, byteorder=trhd.byteorder)  
   head[20:24]= trhd.cdp.to_bytes  (4, byteorder=trhd.byteorder)  
   head[24:28]= trhd.cdpt.to_bytes (4, byteorder=trhd.byteorder)  
-  head[28:30]= trhd.cdpt.to_bytes (2, byteorder=trhd.byteorder)  
+  head[28:30]= trhd.trid.to_bytes (2, byteorder=trhd.byteorder)  
   head[30:32]= trhd.nvs.to_bytes  (2, byteorder=trhd.byteorder)  
   head[32:34]= trhd.nhs.to_bytes  (2, byteorder=trhd.byteorder)   
   head[34:36]= trhd.duse.to_bytes (2, byteorder=trhd.byteorder)   
@@ -566,10 +566,10 @@ def writetr(fp,trhd,trace) :
 
   #SU header words
   if trhd.format == "su" :
-    head[180:184] = struct.pack("f", trhd.f1)
-    head[184:188] = struct.pack("f", trhd.d1)
-    head[188:192] = struct.pack("f", trhd.f2)
-    head[192:196] = struct.pack("f", trhd.d2)
+    head[180:184] = struct.pack("f", trhd.d1)
+    head[184:188] = struct.pack("f", trhd.f1)
+    head[188:192] = struct.pack("f", trhd.d2)
+    head[192:196] = struct.pack("f", trhd.f2)
     head[196:200] = struct.pack("f", trhd.ungpow)
     head[200:204] = struct.pack("f", trhd.unscale)
     head[204:206] = trhd.mark.to_bytes(2,byteorder=trhd.byteorder)
