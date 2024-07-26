@@ -1,4 +1,4 @@
-""" segy contains classes and functions for reading segy and su files 
+""" segy contains classes and functions for reading/writing segy and su files 
       
   Classes 
     segyhd: class for holding segy/su header words
@@ -242,7 +242,7 @@ def readbhd(fp, bhd) :
                      
   return bhd
 
-def writebh(fp, bhd) : 
+def writebhd(fp, bhd) : 
   """ writebhd writes the binary header
     
     Parameters
@@ -583,11 +583,15 @@ def writetr(fp,trhd,trace) :
   ns       = trhd.ns
   nbytes   = ns*trhd.fbytes
 
+  print("No of bytes to write: ",nbytes)
+
   #Pack either su or segy data
   if trhd.format == "su" :
     fstr = str(ns)+'f'
     tmp = trace.astype(np.float32)
     data = tmp.tobytes()
+    print("trace length: ", tmp.shape)
+    print("data length: ", len(data))
 
   if trhd.format == "segy" :
     fstr = str(ns)+'L'
@@ -597,6 +601,7 @@ def writetr(fp,trhd,trace) :
   #Write the data
   rtrace = fp.write(data)
   if(rtrace == None) :
+    print("Error on write")
     return None
 
   return(True)
