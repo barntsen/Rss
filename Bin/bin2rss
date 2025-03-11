@@ -13,6 +13,7 @@ import sys
 
 def main() :
   ''' Main script for converting bin files to rss files '''
+  
   ## Get command line options
 
   # Hack for negative floats as option
@@ -42,24 +43,27 @@ def main() :
 
   # Get sizes and sampling intervals
   nx = args.n1
-  ny = args.n2
-  nz = args.n3
+  ny = 1
+  nz = args.n2
   dx = args.d1
-  dy = args.d2
-  dz = args.d3
+  dy = args.d3
+  dz = args.d2
   ox = args.o1
-  oy = args.o2
-  oz = args.o3
+  oy = args.o3
+  oz = args.o2
 
   #Note that for a binary file
   #there is no information on
   #source and receiver positions
   #so these will be ignored
 
+  #Reshape into rss form
+  data = np.reshape(data,[nx, ny, nz],'F')
+
   #Generic (model) file
   if args.type == 'generic' :
     # Creating a rockseis generic file header
-    rrsfile = rs.RSSdata(data);
+    rssfile = rs.RSSdata(data);
   elif args.type  == '2d' :
     dim=2
     rssfile = rs.RSSdata(data,dim)
@@ -70,6 +74,7 @@ def main() :
     print("bin2rss: Using generic format")
 
   # Setting origin
+  print("ox,oy,oz:",ox,oy,oz)
   rssfile.geomO[0] = ox
   rssfile.geomO[1] = oy
   rssfile.geomO[2] = oz
@@ -78,9 +83,6 @@ def main() :
   rssfile.geomD[0] = dx;
   rssfile.geomD[1] = dy;
   rssfile.geomD[2] = dz;
-
-  #Reshape into rss form
-  data = np.reshape(data,[nx, ny, nz])
 
   # Writting out the data to disk
   rssfile.data = data
