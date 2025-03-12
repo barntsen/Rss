@@ -24,31 +24,32 @@ def setrssgeom(rssfile, trhds,dim) :
   # 2D data
   if dim == 2 :
     for trhd in trhds :
-      if scalco < 0 :
-        scalar = -1/scalco
-      elif scalco > 0 :
-        scalar = scalco
+      if trhd.scalco < 0 :
+        scalar = -1/trhd.scalco
+      elif trhd.scalco > 0 :
+        scalar = trhd.scalco
       else:
         scalar = 1
+      rssfile.geomD[0] = trhd.dt/1.0e+06 
       rssfile.srcX[i] = trhd.sx*scalar
-      rssfile.srcZ[i] = trhd.gwdepth
+      rssfile.srcZ[i] = trhd.swdep
       rssfile.GroupX[i] = trhd.gx * scalar
-      rssfile.GroupZ[i] = trhd.gwdepth
+      rssfile.GroupZ[i] = trhd.gwdep
   # 3D data
   elif dim == 3 :
     for trhd in trhds :
-      if scalco < 0 :
-        scalar = -1/scalco
-      elif scalco > 0 :
-        scalar = scalco
+      if trhd.scalco < 0 :
+        scalar = -1/trhd.scalco
+      elif trhd.scalco > 0 :
+        scalar = trhd.scalco
       else :
         scalar = 1
       rssfile.srcX[i] = trhd.sx * scalar
       rssfile.srcY[i] = trhd.sy * scalar
-      rssfile.srcZ[i] = trhd.gwdepth
+      rssfile.srcZ[i] = trhd.swdep
       rssfile.GroupX[i] = trhd.gx * scalar
       rssfile.GroupY[i] = trhd.gy * scalar
-      rssfile.GroupZ[i] = trhd.gwdepth
+      rssfile.GroupZ[i] = trhd.gwdep
 
   return True
 
@@ -90,17 +91,19 @@ def main() :
     dz = trhds[0].d2
     #Reshape into rss form
     data = np.reshape(data,[nx, ny, nz],'F')
-    mod = rs.RSSdata(data);
+    rssfile = rs.RSSdata(data);
     # Setting origin
-    mod.geomO[0] = 0.0;
-    mod.geomO[1] = 0.0;
-    mod.geomO[2] = 0.0;
+    rssfile.geomO[0] = 0.0;
+    rssfile.geomO[1] = 0.0;
+    rssfile.geomO[2] = 0.0;
     # Setting sampling
-    mod.geomD[0] = dx;
-    mod.geomD[1] = dy;
-    mod.geomD[2] = dz;
+    rssfile.geomD[0] = dx;
+    rssfile.geomD[1] = dy;
+    rssfile.geomD[2] = dz;
   elif args.type  == '2d' :
     dim=2
+    #reshape to rss format
+    data = np.reshape(data,[trhds[0].ns, len(trhds)],'F')
     rssfile = rs.RSSdata(data,dim)
     setrssgeom(rssfile,trhds,dim)
   elif args.type  == '3d' :
@@ -112,7 +115,7 @@ def main() :
     print("Using generic format")
 
   # Writting out the data to disk
-  mod.write(args.fout);
+  rssfile.write(args.fout);
 
 #--Usual python magic
 if __name__ == "__main__":

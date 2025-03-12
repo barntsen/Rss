@@ -1,7 +1,8 @@
-""" segy contains classes and functions for reading/writing segy and su files 
+""" segy contains classes and functions for reading segy and su files 
       
   Classes 
-    segyhd: class for holding segy/su header words
+    segyhd:  class for holding segy/su trace header 
+    segybhd: class for holding segy/su trace header
        
   Functions
     readtexthd  : Read segy text header (3200 bytes)
@@ -15,10 +16,13 @@
     writetrs    : Write a number of traces
     ibm2ieee    : Convert IBM float to ieee
     ieee2ibm    : Convert ieee to IBM float
+
 """
+
 import sys
 import struct
 import numpy as np
+from ibm_float import *
 
 class segyhd :
   """ Class for holding the trace header 
@@ -34,20 +38,31 @@ class segyhd :
     """ Create new segyhd object 
     
         Parameters
-          mode:    = "su" or "segy"
-
+          mode:    = "su"
+                   Seismic Unix file format
+                   = "segy1"
+                   The standard SEGY file format using
+                   ibm float values for the trace data
+                   = "segy4"
+                   The standard SEGY file format using
+                   ieee (native) float values for the trace data
         Return
           The mode parameter sets the format filed to either
-          "su" or "segy". If mode is anything else None is
+          "su", "segy1" or "segy4". If mode is anything else None is
           is returned.
     """    
 
-      
-    if mode == 'segy' :
-      self.format = 'segy'
+    if mode == 'segy1' :
+      self.format = 'segy1'
       self.byteorder = 'big'
+      self.float  = 1   
+    elif mode == 'segy4' :
+      self.format = 'segy4'
+      self.byteorder = 'big'
+      self.float  = 4   
     elif mode == 'su' :
       self.format = 'su'
+      self.float = 4
       self.byteorder = 'little' 
     else :
       return None
@@ -57,8 +72,8 @@ class segyhd :
     self.ns     = 0      # trace length
 
     #Initialize segy fields
-    self.tracl = 0       # Trace seq no within line
-    self.tracr = 0       # Trace seq no within file
+    self.tracl = 0       # Trace seq no within line         bytes 1-2
+    self.tracr = 0       # Trace seq no within file         bytes 3-4
     self.fldr  = 0       # Field record no
     self.tracf = 0       # Trace no 
     self.ep    = 0       # Source no
@@ -153,7 +168,7 @@ class segybhd :
 
   """
 
-  def __init__(self) :
+  def __init__(self, mode) :
     """ Create new segybhd object 
     """    
 
@@ -171,12 +186,12 @@ class segybhd :
     self.ns   = 0      #No of samples per trace       bytes: 3221-3222
     self.nso  = 0      #No of samples per trace       bytes: 3223-3224
                        #for original field record     
-    self.fmt  = 0      # Data sample format           bytes: 3225-3226
-                       # 1 = 4-byte IBM float
-                       # 2 = 4-byte two-complement int
-                       # 3 = 2-byte two-complement int
-                       # 4 = 4-byte IEEE float
-                       # 8 = 1-byte two-complement int
+    if mode == "segy1" :
+      self.fmt  = 1        
+    elif mode == "segy4" : 
+      self.fmt  = 4        
+    else :
+      return(False)
 
 def readtexthd(fp) : 
   """ readtexthd reads the 3200 byte text header in segy files 
@@ -191,7 +206,7 @@ def readtexthd(fp) :
   textbytes = 3200
   texthd = fp.read(3200) 
   if texthd == None :
-    return None
+    return False 
 
   return texthd
 
@@ -204,16 +219,17 @@ def writetexthd(fp, texthd) :
 
     Return
       True : On sucesss
-      None : Failure
+      False : Failure
   """
 
   status = fp.write(texthd) 
   if status == None :
-    return None
+    return False
 
   return True
 
 def readbhd(fp, bhd) : 
+
   """ readbhd reads the binary header
     
     Parameters
@@ -221,24 +237,27 @@ def readbhd(fp, bhd) :
       bhd   : Binary header object
       
     Return
-      bhd   : Binary header
+      True if no errors
+      False if errors
+
+      On return the binary header fields are set.
   """
 
   buff = fp.read(bhd.nbhd)
   if buff == None :
-    return None
+    return None 
 
   #Fill in header fields
-  bhd.jid = int.from_bytes(buff[0:4], byteorder=bhd.byteorder)
-  bhd.lno = int.from_bytes(buff[4:8], byteorder=bhd.byteorder)
-  bhd.rno = int.from_bytes(buff[8:12],byteorder=bhd.byteorder)
-  bhd.ntr = int.from_bytes(buff[12:14], byteorder=bhd.byteorder)  
-  bhd.naux = int.from_bytes(buff[14:16], byteorder=bhd.byteorder)  
-  bhd.dt   = int.from_bytes(buff[16:18], byteorder=bhd.byteorder)  
-  bhd.dto  = int.from_bytes(buff[18:20], byteorder=bhd.byteorder)       
-  bhd.ns   = int.from_bytes(buff[20:22], byteorder=bhd.byteorder)       
-  bhd.nso  = int.from_bytes(buff[22:24], byteorder=bhd.byteorder)       
-  bhd.fmt  = int.from_bytes(buff[24:26], byteorder=bhd.byteorder)            
+  bhd.jid = int.from_bytes(buff[0:4], byteorder=bhd.byteorder,signed=True)
+  bhd.lno = int.from_bytes(buff[4:8], byteorder=bhd.byteorder,signed=True)
+  bhd.rno = int.from_bytes(buff[8:12],byteorder=bhd.byteorder,signed=True)
+  bhd.ntr = int.from_bytes(buff[12:14], byteorder=bhd.byteorder,signed=True)  
+  bhd.naux = int.from_bytes(buff[14:16], byteorder=bhd.byteorder,signed=True)  
+  bhd.dt   = int.from_bytes(buff[16:18], byteorder=bhd.byteorder,signed=True)  
+  bhd.dto  = int.from_bytes(buff[18:20], byteorder=bhd.byteorder,signed=True)       
+  bhd.ns   = int.from_bytes(buff[20:22], byteorder=bhd.byteorder,signed=True)       
+  bhd.nso  = int.from_bytes(buff[22:24], byteorder=bhd.byteorder,signed=True)       
+  bhd.fmt  = int.from_bytes(buff[24:26], byteorder=bhd.byteorder,signed=True)            
                      
   return bhd
 
@@ -254,6 +273,7 @@ def writebhd(fp, bhd) :
       None  : Failure
   """
 
+  buff      = bytearray(bhd.nbhd)
   buff[0:4] = bhd.jid.to_bytes(4, byteorder=bhd.byteorder)
   buff[4:8] = bhd.lno.to_bytes(4, byteorder=bhd.byteorder)
   buff[8:12] = bhd.rno.to_bytes(4, byteorder=bhd.byteorder)
@@ -263,7 +283,7 @@ def writebhd(fp, bhd) :
   buff[18:20] = bhd.dto.to_bytes(2, byteorder=bhd.byteorder)
   buff[20:22] = bhd.ns.to_bytes(2, byteorder=bhd.byteorder)
   buff[22:24] = bhd.nso.to_bytes(2, byteorder=bhd.byteorder)
-  buff[22:24] = bhd.fmt.to_bytes(2, byteorder=bhd.byteorder)
+  buff[24:26] = bhd.fmt.to_bytes(2, byteorder=bhd.byteorder)
 
   buff = fp.write(buff)
   if buff == None :
@@ -293,7 +313,7 @@ def readtr(fp,trhd) :
     return None, None
 
   #Get the number of bytes of data
-  ns       = int.from_bytes(head[114:116], byteorder=trhd.byteorder)
+  ns       = int.from_bytes(head[114:116], byteorder=trhd.byteorder,signed=True)
   nbytes   = ns*trhd.fbytes
 
   #Read the data
@@ -306,86 +326,92 @@ def readtr(fp,trhd) :
     fstr = str(ns)+'f'
     data=struct.unpack(fstr,rtrace)
     trace = np.array(data)
-
-  if trhd.format == "segy" :
-    fstr = '>'+str(ns)+'I'
+  elif trhd.format == "segy4" :
+    fstr = str(ns)+'f'
     data=struct.unpack(fstr,rtrace)
     trace = np.array(data)
-    for i in range(0,len(data)) :
-      trace[i]=ibm2ieee(data[i])
+  elif trhd.format == "segy1" :
+    trace=np.zeros(ns)
+    offset=0
+    for i in range(0,ns) :
+      val = rtrace[offset:offset+4]
+      offset=offset+4
+      trace[i]=ibm2ieee(val)
+  else :
+    return(None)
 
   #Fill in header info
-  trhd.tracl = int.from_bytes(head[0:4],     byteorder=trhd.byteorder) 
-  trhd.tracr = int.from_bytes(head[4:8],     byteorder=trhd.byteorder) 
-  trhd.fldr  = int.from_bytes(head[8:12],    byteorder=trhd.byteorder) 
-  trhd.tracf = int.from_bytes(head[12:16],   byteorder=trhd.byteorder) 
-  trhd.ep    = int.from_bytes(head[16:20],   byteorder=trhd.byteorder) 
-  trhd.cdp   = int.from_bytes(head[20:24],   byteorder=trhd.byteorder) 
-  trhd.cdpt  = int.from_bytes(head[24:28],   byteorder=trhd.byteorder) 
-  trhd.trid  = int.from_bytes(head[28:30],   byteorder=trhd.byteorder) 
-  trhd.nvs   = int.from_bytes(head[30:32],   byteorder=trhd.byteorder) 
-  trhd.nhs   = int.from_bytes(head[32:34],   byteorder=trhd.byteorder) 
-  trhd.duse  = int.from_bytes(head[34:36],   byteorder=trhd.byteorder) 
-  trhd.offset= int.from_bytes(head[36:40],   byteorder=trhd.byteorder) 
-  trhd.gelev = int.from_bytes(head[40:44],   byteorder=trhd.byteorder) 
-  trhd.selev = int.from_bytes(head[44:48],   byteorder=trhd.byteorder) 
-  trhd.sdepth= int.from_bytes(head[48:52],   byteorder=trhd.byteorder) 
-  trhd.gdel  = int.from_bytes(head[52:56],   byteorder=trhd.byteorder) 
-  trhd.sdel  = int.from_bytes(head[56:60],   byteorder=trhd.byteorder) 
-  trhd.swdep = int.from_bytes(head[60:64],   byteorder=trhd.byteorder) 
-  trhd.gwdep = int.from_bytes(head[64:68],   byteorder=trhd.byteorder) 
-  trhd.scalel= int.from_bytes(head[68:70],   byteorder=trhd.byteorder) 
-  trhd.scalco= int.from_bytes(head[70:72],   byteorder=trhd.byteorder) 
-  trhd.sx    = int.from_bytes(head[72:76],   byteorder=trhd.byteorder) 
-  trhd.sy    = int.from_bytes(head[76:80],   byteorder=trhd.byteorder) 
-  trhd.gx    = int.from_bytes(head[80:84],   byteorder=trhd.byteorder) 
-  trhd.gy    = int.from_bytes(head[84:88],   byteorder=trhd.byteorder) 
-  trhd.counit= int.from_bytes(head[88:90],   byteorder=trhd.byteorder) 
-  trhd.wevel = int.from_bytes(head[90:92],   byteorder=trhd.byteorder) 
-  trhd.swevel= int.from_bytes(head[92:94],   byteorder=trhd.byteorder) 
-  trhd.sut   = int.from_bytes(head[94:96],   byteorder=trhd.byteorder) 
-  trhd.gut   = int.from_bytes(head[96:98],   byteorder=trhd.byteorder) 
-  trhd.sstat = int.from_bytes(head[98:100],  byteorder=trhd.byteorder) 
-  trhd.gstat = int.from_bytes(head[100:102], byteorder=trhd.byteorder) 
-  trhd.tstat = int.from_bytes(head[102:104], byteorder=trhd.byteorder) 
-  trhd.laga  = int.from_bytes(head[104:106], byteorder=trhd.byteorder) 
-  trhd.lagb  = int.from_bytes(head[106:108], byteorder=trhd.byteorder) 
-  trhd.delrt = int.from_bytes(head[108:110], byteorder=trhd.byteorder) 
-  trhd.muts  = int.from_bytes(head[110:112], byteorder=trhd.byteorder) 
-  trhd.mute  = int.from_bytes(head[112:114], byteorder=trhd.byteorder) 
-  trhd.ns    = int.from_bytes(head[114:116], byteorder=trhd.byteorder)
-  trhd.dt    = int.from_bytes(head[116:118], byteorder=trhd.byteorder)
-  trhd.gain  = int.from_bytes(head[118:120], byteorder=trhd.byteorder)
-  trhd.igc   = int.from_bytes(head[120:122], byteorder=trhd.byteorder)
-  trhd.igi   = int.from_bytes(head[122:124], byteorder=trhd.byteorder)
-  trhd.corr  = int.from_bytes(head[124:126], byteorder=trhd.byteorder)
-  trhd.sfs   = int.from_bytes(head[126:128], byteorder=trhd.byteorder)
-  trhd.sfe   = int.from_bytes(head[128:130], byteorder=trhd.byteorder)
-  trhd.slen  = int.from_bytes(head[130:132], byteorder=trhd.byteorder)
-  trhd.styp  = int.from_bytes(head[132:134], byteorder=trhd.byteorder)
-  trhd.stas  = int.from_bytes(head[134:136], byteorder=trhd.byteorder)
-  trhd.stae  = int.from_bytes(head[136:138], byteorder=trhd.byteorder)
-  trhd.tatyp = int.from_bytes(head[138:140], byteorder=trhd.byteorder)
-  trhd.afilf = int.from_bytes(head[140:142], byteorder=trhd.byteorder)
-  trhd.afils = int.from_bytes(head[142:144], byteorder=trhd.byteorder)
-  trhd.nofilf= int.from_bytes(head[144:146], byteorder=trhd.byteorder)
-  trhd.nofils= int.from_bytes(head[146:148], byteorder=trhd.byteorder)
-  trhd.lcf   = int.from_bytes(head[148:150], byteorder=trhd.byteorder)
-  trhd.hcf   = int.from_bytes(head[150:152], byteorder=trhd.byteorder)
-  trhd.lcs   = int.from_bytes(head[152:154], byteorder=trhd.byteorder)
-  trhd.hcs   = int.from_bytes(head[154:156], byteorder=trhd.byteorder)
-  trhd.year  = int.from_bytes(head[156:158], byteorder=trhd.byteorder)
-  trhd.day   = int.from_bytes(head[158:160], byteorder=trhd.byteorder)
-  trhd.hour  = int.from_bytes(head[160:162], byteorder=trhd.byteorder)
-  trhd.minute= int.from_bytes(head[162:164], byteorder=trhd.byteorder)
-  trhd.sec   = int.from_bytes(head[164:166], byteorder=trhd.byteorder)
-  trhd.timbas= int.from_bytes(head[166:168], byteorder=trhd.byteorder)
-  trhd.trwf  = int.from_bytes(head[168:170], byteorder=trhd.byteorder)
-  trhd.grnors= int.from_bytes(head[170:172], byteorder=trhd.byteorder)
-  trhd.grnofr= int.from_bytes(head[172:174], byteorder=trhd.byteorder)
-  trhd.grnlof= int.from_bytes(head[174:176], byteorder=trhd.byteorder)
-  trhd.gaps  = int.from_bytes(head[176:178], byteorder=trhd.byteorder)
-  trhd.otrav = int.from_bytes(head[178:180], byteorder=trhd.byteorder)
+  trhd.tracl = int.from_bytes(head[0:4],     byteorder=trhd.byteorder,signed=True) 
+  trhd.tracr = int.from_bytes(head[4:8],     byteorder=trhd.byteorder,signed=True) 
+  trhd.fldr  = int.from_bytes(head[8:12],    byteorder=trhd.byteorder,signed=True) 
+  trhd.tracf = int.from_bytes(head[12:16],   byteorder=trhd.byteorder,signed=True) 
+  trhd.ep    = int.from_bytes(head[16:20],   byteorder=trhd.byteorder,signed=True) 
+  trhd.cdp   = int.from_bytes(head[20:24],   byteorder=trhd.byteorder,signed=True) 
+  trhd.cdpt  = int.from_bytes(head[24:28],   byteorder=trhd.byteorder,signed=True) 
+  trhd.trid  = int.from_bytes(head[28:30],   byteorder=trhd.byteorder,signed=True) 
+  trhd.nvs   = int.from_bytes(head[30:32],   byteorder=trhd.byteorder,signed=True) 
+  trhd.nhs   = int.from_bytes(head[32:34],   byteorder=trhd.byteorder,signed=True) 
+  trhd.duse  = int.from_bytes(head[34:36],   byteorder=trhd.byteorder,signed=True) 
+  trhd.offset= int.from_bytes(head[36:40],   byteorder=trhd.byteorder,signed=True) 
+  trhd.gelev = int.from_bytes(head[40:44],   byteorder=trhd.byteorder,signed=True) 
+  trhd.selev = int.from_bytes(head[44:48],   byteorder=trhd.byteorder,signed=True) 
+  trhd.sdepth= int.from_bytes(head[48:52],   byteorder=trhd.byteorder,signed=True) 
+  trhd.gdel  = int.from_bytes(head[52:56],   byteorder=trhd.byteorder,signed=True) 
+  trhd.sdel  = int.from_bytes(head[56:60],   byteorder=trhd.byteorder,signed=True) 
+  trhd.swdep = int.from_bytes(head[60:64],   byteorder=trhd.byteorder,signed=True) 
+  trhd.gwdep = int.from_bytes(head[64:68],   byteorder=trhd.byteorder,signed=True) 
+  trhd.scalel= int.from_bytes(head[68:70],   byteorder=trhd.byteorder,signed=True) 
+  trhd.scalco= int.from_bytes(head[70:72],   byteorder=trhd.byteorder,signed=True) 
+  trhd.sx    = int.from_bytes(head[72:76],   byteorder=trhd.byteorder,signed=True) 
+  trhd.sy    = int.from_bytes(head[76:80],   byteorder=trhd.byteorder,signed=True) 
+  trhd.gx    = int.from_bytes(head[80:84],   byteorder=trhd.byteorder,signed=True) 
+  trhd.gy    = int.from_bytes(head[84:88],   byteorder=trhd.byteorder,signed=True) 
+  trhd.counit= int.from_bytes(head[88:90],   byteorder=trhd.byteorder,signed=True) 
+  trhd.wevel = int.from_bytes(head[90:92],   byteorder=trhd.byteorder,signed=True) 
+  trhd.swevel= int.from_bytes(head[92:94],   byteorder=trhd.byteorder,signed=True) 
+  trhd.sut   = int.from_bytes(head[94:96],   byteorder=trhd.byteorder,signed=True) 
+  trhd.gut   = int.from_bytes(head[96:98],   byteorder=trhd.byteorder,signed=True) 
+  trhd.sstat = int.from_bytes(head[98:100],  byteorder=trhd.byteorder,signed=True) 
+  trhd.gstat = int.from_bytes(head[100:102], byteorder=trhd.byteorder,signed=True) 
+  trhd.tstat = int.from_bytes(head[102:104], byteorder=trhd.byteorder,signed=True) 
+  trhd.laga  = int.from_bytes(head[104:106], byteorder=trhd.byteorder,signed=True) 
+  trhd.lagb  = int.from_bytes(head[106:108], byteorder=trhd.byteorder,signed=True) 
+  trhd.delrt = int.from_bytes(head[108:110], byteorder=trhd.byteorder,signed=True) 
+  trhd.muts  = int.from_bytes(head[110:112], byteorder=trhd.byteorder,signed=True) 
+  trhd.mute  = int.from_bytes(head[112:114], byteorder=trhd.byteorder,signed=True) 
+  trhd.ns    = int.from_bytes(head[114:116], byteorder=trhd.byteorder,signed=True)
+  trhd.dt    = int.from_bytes(head[116:118], byteorder=trhd.byteorder,signed=True)
+  trhd.gain  = int.from_bytes(head[118:120], byteorder=trhd.byteorder,signed=True)
+  trhd.igc   = int.from_bytes(head[120:122], byteorder=trhd.byteorder,signed=True)
+  trhd.igi   = int.from_bytes(head[122:124], byteorder=trhd.byteorder,signed=True)
+  trhd.corr  = int.from_bytes(head[124:126], byteorder=trhd.byteorder,signed=True)
+  trhd.sfs   = int.from_bytes(head[126:128], byteorder=trhd.byteorder,signed=True)
+  trhd.sfe   = int.from_bytes(head[128:130], byteorder=trhd.byteorder,signed=True)
+  trhd.slen  = int.from_bytes(head[130:132], byteorder=trhd.byteorder,signed=True)
+  trhd.styp  = int.from_bytes(head[132:134], byteorder=trhd.byteorder,signed=True)
+  trhd.stas  = int.from_bytes(head[134:136], byteorder=trhd.byteorder,signed=True)
+  trhd.stae  = int.from_bytes(head[136:138], byteorder=trhd.byteorder,signed=True)
+  trhd.tatyp = int.from_bytes(head[138:140], byteorder=trhd.byteorder,signed=True)
+  trhd.afilf = int.from_bytes(head[140:142], byteorder=trhd.byteorder,signed=True)
+  trhd.afils = int.from_bytes(head[142:144], byteorder=trhd.byteorder,signed=True)
+  trhd.nofilf= int.from_bytes(head[144:146], byteorder=trhd.byteorder,signed=True)
+  trhd.nofils= int.from_bytes(head[146:148], byteorder=trhd.byteorder,signed=True)
+  trhd.lcf   = int.from_bytes(head[148:150], byteorder=trhd.byteorder,signed=True)
+  trhd.hcf   = int.from_bytes(head[150:152], byteorder=trhd.byteorder,signed=True)
+  trhd.lcs   = int.from_bytes(head[152:154], byteorder=trhd.byteorder,signed=True)
+  trhd.hcs   = int.from_bytes(head[154:156], byteorder=trhd.byteorder,signed=True)
+  trhd.year  = int.from_bytes(head[156:158], byteorder=trhd.byteorder,signed=True)
+  trhd.day   = int.from_bytes(head[158:160], byteorder=trhd.byteorder,signed=True)
+  trhd.hour  = int.from_bytes(head[160:162], byteorder=trhd.byteorder,signed=True)
+  trhd.minute= int.from_bytes(head[162:164], byteorder=trhd.byteorder,signed=True)
+  trhd.sec   = int.from_bytes(head[164:166], byteorder=trhd.byteorder,signed=True)
+  trhd.timbas= int.from_bytes(head[166:168], byteorder=trhd.byteorder,signed=True)
+  trhd.trwf  = int.from_bytes(head[168:170], byteorder=trhd.byteorder,signed=True)
+  trhd.grnors= int.from_bytes(head[170:172], byteorder=trhd.byteorder,signed=True)
+  trhd.grnofr= int.from_bytes(head[172:174], byteorder=trhd.byteorder,signed=True)
+  trhd.grnlof= int.from_bytes(head[174:176], byteorder=trhd.byteorder,signed=True)
+  trhd.gaps  = int.from_bytes(head[176:178], byteorder=trhd.byteorder,signed=True)
+  trhd.otrav = int.from_bytes(head[178:180], byteorder=trhd.byteorder,signed=True)
 
   #SU header words
   if trhd.format == "su" :
@@ -400,24 +426,13 @@ def readtr(fp,trhd) :
   return(trhd,trace)
 
 
-def ibm2ieee(ibm):
-  """
-  Converts an IBM floating point number into IEEE format.
-  :param: ibm - 32 bit unsigned integer: unpack('>L', f.read(4))
-  """
-  if ibm == 0:
-      return 0.0
-  sign = ibm >> 31 & 0x01
-  exponent = ibm >> 24 & 0x7f
-  mantissa = (ibm & 0x00ffffff) / float(pow(2, 24))
-  return (1 - 2 * sign) * mantissa * pow(16, exponent - 64)
-
-def getntr(fp,ns) :
-  """Find the number of traces in a file 
+def getntr(fp,ns,mode) :
+  """Find the number of traces in an su file 
 
      Parameters
        fp : File object
        ns : No of samples in a trace
+       mode: "su" or "segy" 
 
      Return
        The return value is the number of
@@ -425,6 +440,7 @@ def getntr(fp,ns) :
        The number of traces is computed by
        the size of the file divided by
        the size of each trace.
+       In case of error -1 is returned
    """
      
   #save current position
@@ -434,34 +450,77 @@ def getntr(fp,ns) :
   #Get file size 
   n=fp.tell()
   #Compute the number of traces
-  ntr = n/(4*ns+240) 
+  if(mode == "su") :
+    ntr = n/(4*ns+240) 
+  elif(mode == "segy") :
+    n = n-3200-400
+    ntr = n/(4*ns+240) 
+  else :
+    return(-1)
+
   #Reposition to initial state
   fp.seek(pos)
   return int(ntr)
     
-def readtrs(fp, ntr, mode) :
+def readtrs(fp, ntr, nmode) :
   """ readtrs loads data in su or segy format from a file
         
       Parameters
         fp    : File object opened in binary mode
         ntr   : The number of traces to read. 
                 If ntr == -1 All traces found in the file are read
-        mode  : = "su" or "segy" data formats
+        nmode  : = "su" or "segy" data formats
         
       Return
-        Tuple containg a list of trace header objects and
-         a 2D numpy array.
-         In case of read error or nonexisting mode a None,None 
+        If nmode == "segy" the return value is a
+        tuple containg textheader, binary header,a list of trace header 
+        objects and a 2D numpy array
+        
+        If nmode == "su" the return value is a
+        tuple containg list of trace header 
+        objects and a 2D numpy array
+         
+         In case of read error or nonexisting mode None is returned.
          tuple is returned.
   """
+
+  if(nmode == "segy") :
+    # Create a segy binary header
+    bhd = segybhd("segy1")
+
+    # Create the ebcdic text header
+    texthd = bytearray(3200)
+
+    # Create a segy trace header
+    trhd = segyhd("segy1")
+
+    #Read the text header
+    texthd=readtexthd(fp)
+
+    #Read the binary header
+    bhd=readbhd(fp,bhd)
+    if(bhd.fmt == 1):
+      mode ="segy1"
+      trhd = segyhd(mode)
+    elif(bhd.fmt == 4) :
+      mode ="segy4"
+      trhd = segyhd(mode)
+  elif nmode == 'su':
+      mode = 'su'
+      trhd = segyhd(mode)
+  else:
+      return None
+
   trhds = []
-  trhd = segyhd(mode)
+
+  # Read a single trace to get the number of samples
+  pos=fp.tell()
+  trhd,trace = readtr(fp,trhd)
+  fp.seek(pos)
   traces=None
 
   if(ntr == -1 ) :
-    trhd,trace = readtr(fp, trhd)
-    ntr=getntr(fp,trhd.ns)
-    fp.seek(0)
+    ntr=getntr(fp,trhd.ns,nmode)
 
   for i in range(0,ntr):
     trhd = segyhd(mode)
@@ -476,7 +535,13 @@ def readtrs(fp, ntr, mode) :
       traces[0,:] = trace[:]
     else :
       traces[i,:] = trace[:] 
-  return trhds,traces
+
+  if( nmode == "segy") :
+    return texthd,bhd,trhds,traces
+  elif(nmode == "su") :
+    return trhds,traces
+  else:
+    return None
         
     
 def writetr(fp,trhd,trace) :
@@ -489,6 +554,7 @@ def writetr(fp,trhd,trace) :
 
       Return  : True if no errors, None if errors occured.
 """
+
   #Fill in header info
   head = bytearray(240)
   head[0:4]  = trhd.tracl.to_bytes( 4, byteorder=trhd.byteorder) 
@@ -583,25 +649,26 @@ def writetr(fp,trhd,trace) :
   ns       = trhd.ns
   nbytes   = ns*trhd.fbytes
 
-  print("No of bytes to write: ",nbytes)
-
-  #Pack either su or segy data
   if trhd.format == "su" :
     fstr = str(ns)+'f'
     tmp = trace.astype(np.float32)
     data = tmp.tobytes()
-    print("trace length: ", tmp.shape)
-    print("data length: ", len(data))
-
-  if trhd.format == "segy" :
-    fstr = str(ns)+'L'
-    data=ibm2ieee(trace)
-    data=trace.tobytes()
-
+  elif trhd.format == "segy1" :
+    data = bytearray(ns*4)
+    offset=0
+    for i in range(0,ns) :
+      data[offset:offset+4]=ieee2ibm(float(trace[i]))
+      offset = offset +4 
+  elif trhd.format == "segy4" :
+    fstr = str(ns)+'f'
+    tmp = trace.astype(np.float32)
+    data = tmp.tobytes()
+  else :
+    return(None)
+  
   #Write the data
   rtrace = fp.write(data)
   if(rtrace == None) :
-    print("Error on write")
     return None
 
   return(True)
@@ -614,7 +681,7 @@ def writetrs(fp, trhdrs, traces, mode) :
         fp     : File object opened in binary mode
         trhdrs : List of header objects
         traces : Traces to write (numpy array)
-        mode   : = "su" or "segy" data formats
+        mode   : = "su", "segy1" or "segy4" data formats
         
       Return
          In case of write error or nonexisting mode a None 
@@ -628,30 +695,3 @@ def writetrs(fp, trhdrs, traces, mode) :
   return rval
         
 
-def ieee2ibm(ieee):
-    ieee = ieee.astype(np.float32)
-    expmask = 0x7f800000
-    signmask = 0x80000000
-    mantmask = 0x7fffff
-    asint = ieee.view('i4')
-    signbit = asint & signmask
-    exponent = ((asint & expmask) >> 23) - 127
-    # The IBM 7-bit exponent is to the base 16 and the mantissa is presumed to
-    # be entirely to the right of the radix point. In contrast, the IEEE
-    # exponent is to the base 2 and there is an assumed 1-bit to the left of the
-    # radix point.
-    exp16 = ((exponent+1) // 4)
-    exp_remainder = (exponent+1) % 4
-    exp16 += exp_remainder != 0
-    downshift = np.where(exp_remainder, 4-exp_remainder, 0)
-    ibm_exponent = np.clip(exp16 + 64, 0, 127)
-    expbits = ibm_exponent << 24
-    # Add the implicit initial 1-bit to the 23-bit IEEE mantissa to get the
-    # 24-bit IBM mantissa. Downshift it by the remainder from the exponent's
-    # division by 4. It is allowed to have up to 3 leading 0s.
-    ibm_mantissa = ((asint & mantmask) | 0x800000) >> downshift
-    # Special-case 0.0
-    ibm_mantissa = np.where(ieee, ibm_mantissa, 0)
-    expbits = np.where(ieee, expbits, 0)
-
-    return signbit | expbits | ibm_mantissa
