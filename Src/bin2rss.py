@@ -57,14 +57,17 @@ def main() :
   #so these will be ignored
 
   #Reshape into rss form
-  data = np.reshape(data,[nx, ny, nz],'F')
+  print(data.ndim)
 
   #Generic (model) file
   if args.type == 'generic' :
     # Creating a rockseis generic file header
+    data = np.reshape(data,[nx, ny, nz],'F')
     rssfile = rs.RSSdata(data);
   elif args.type  == '2d' :
     dim=2
+    print("dim: ", dim)
+    data = np.reshape(data,[nx, nz],'F')
     rssfile = rs.RSSdata(data,dim)
   elif args.type  == '3d' :
     dim=3

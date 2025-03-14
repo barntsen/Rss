@@ -29,11 +29,14 @@ def setrssgeom(rssfile, trhds,dim) :
         scalar = trhd.scalco
       else:
         scalar = 1
+
       rssfile.geomD[0] = trhd.dt/1.0e+06 
       rssfile.srcX[i] = trhd.sx*scalar
       rssfile.srcZ[i] = trhd.swdep
       rssfile.GroupX[i] = trhd.gx * scalar
       rssfile.GroupZ[i] = trhd.gwdep
+      i=i+1
+    
   # 3D data
   elif dim == 3 :
     for trhd in trhds :
@@ -49,6 +52,7 @@ def setrssgeom(rssfile, trhds,dim) :
       rssfile.GroupX[i] = trhd.gx * scalar
       rssfile.GroupY[i] = trhd.gy * scalar
       rssfile.GroupZ[i] = trhd.gwdep
+      i=i+1
 
   return True
 
